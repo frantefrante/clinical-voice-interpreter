@@ -1,0 +1,161 @@
+# Clinical Voice Interpreter - Requirements
+# Core dependencies for cross-platform voice transcription with Stream Deck integration
+
+# ==================== CORE DEPENDENCIES ====================
+
+# Stream Deck control
+streamdeck>=0.9.5
+
+# Image processing for Stream Deck icons
+Pillow>=9.0.0
+
+# Audio recording and processing
+pyaudio>=0.2.11
+
+# Whisper for speech recognition
+openai-whisper>=20231117
+
+# Environment configuration
+python-dotenv>=1.0.0
+
+# ==================== PLATFORM-SPECIFIC TTS ====================
+
+# Windows TTS (install on Windows only)
+# pyttsx3>=2.90; sys_platform == "win32"
+
+# ==================== OPTIONAL DEPENDENCIES ====================
+
+# OpenAI API for LLM processing and Whisper fallback
+openai>=1.0.0
+
+# DeepL for translation
+deepl>=1.12.0
+
+# Additional audio processing (optional, for advanced features)
+soundfile>=0.12.1
+librosa>=0.10.0
+
+# ==================== GUI DEPENDENCIES ====================
+
+# Tkinter is included with Python standard library
+# No additional GUI dependencies required
+
+# ==================== DEVELOPMENT DEPENDENCIES (optional) ====================
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Code formatting and linting
+black>=23.0.0
+flake8>=6.0.0
+isort>=5.12.0
+
+# Type checking
+mypy>=1.0.0
+
+# Documentation
+sphinx>=6.0.0
+sphinx-rtd-theme>=1.2.0
+
+# ==================== SYSTEM REQUIREMENTS ====================
+
+# Python 3.8+
+# FFmpeg (system install required)
+# Microphone access
+# Stream Deck device (hardware)
+
+# ==================== INSTALLATION NOTES ====================
+
+# macOS additional requirements:
+# - brew install portaudio (for PyAudio)
+# - brew install ffmpeg
+
+# Windows additional requirements:
+# - Visual C++ Build Tools (for PyAudio compilation)
+# - FFmpeg (add to PATH)
+
+# Linux additional requirements (Ubuntu/Debian):
+# - sudo apt-get install portaudio19-dev python3-dev
+# - sudo apt-get install ffmpeg espeak
+# - sudo apt-get install libasound2-dev (for audio)
+
+# Stream Deck udev rules (Linux):
+# Create /etc/udev/rules.d/50-elgato.rules with:
+# SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0060", MODE="0666"
+# SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="0063", MODE="0666"
+# SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="006c", MODE="0666"
+# SUBSYSTEM=="usb", ATTRS{idVendor}=="0fd9", ATTRS{idProduct}=="006d", MODE="0666"
+# Then: sudo udevadm control --reload-rules
+
+# ==================== MINIMUM VERSIONS ====================
+
+# Python: 3.8+
+# PyAudio: 0.2.11+
+# Whisper: 20231117+
+# Pillow: 9.0.0+
+# StreamDeck: 0.9.5+
+
+# ==================== OPTIONAL EXTRAS ====================
+
+# For GPU acceleration (CUDA):
+# torch>=2.0.0+cu118
+# torchaudio>=2.0.0+cu118
+
+# For metal acceleration (macOS M1/M2):
+# torch>=2.0.0
+# torchaudio>=2.0.0
+
+# For advanced audio processing:
+# scipy>=1.9.0
+# numpy>=1.21.0
+
+# For database storage (future enhancement):
+# sqlalchemy>=2.0.0
+# sqlite3 (included with Python)
+
+# ==================== INSTALLATION COMMANDS ====================
+
+# Basic installation:
+# pip install -r requirements.txt
+
+# Development installation:
+# pip install -r requirements.txt
+# pip install pytest black flake8 mypy
+
+# Windows-specific:
+# pip install -r requirements.txt
+# pip install pyttsx3
+
+# macOS with Homebrew:
+# brew install portaudio ffmpeg
+# pip install -r requirements.txt
+
+# Linux (Ubuntu/Debian):
+# sudo apt-get install portaudio19-dev python3-dev ffmpeg espeak
+# pip install -r requirements.txt
+
+# ==================== VERSION COMPATIBILITY ====================
+
+# Python 3.8: Minimum supported
+# Python 3.9: Recommended for stability
+# Python 3.10: Recommended for performance
+# Python 3.11: Latest tested
+# Python 3.12: Should work but not extensively tested
+
+# ==================== TROUBLESHOOTING ====================
+
+# If PyAudio fails to install:
+# - Windows: Install Visual C++ Build Tools
+# - macOS: brew install portaudio
+# - Linux: sudo apt-get install portaudio19-dev
+
+# If Whisper is slow:
+# - Install with GPU support: pip install torch torchvision torchaudio
+# - Use smaller model: WHISPER_MODEL=tiny or base
+
+# If Stream Deck not detected:
+# - Linux: Check udev rules (see notes above)
+# - Windows: Install Elgato Stream Deck software
+# - macOS: Usually works without additional drivers

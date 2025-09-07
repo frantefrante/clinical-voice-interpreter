@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# OS / Editors
+.DS_Store
+.idea/
+.vscode/
+
+# Env files / secrets
+.env
+.env.*
+!.env.sample
+!.env.sample.txt
+
+# Build / Dist
+build/
+dist/
+*.egg-info/
+
+# Project outputs and logs
+output/
+clinical_voice_interpreter.log
+
+# Temporary audio and artifacts
+*.wav
+*.tmp
+*.log
+
+# Coverage / Reports
+.coverage
+htmlcov/
