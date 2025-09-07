@@ -11,6 +11,10 @@ A privacy-first, push-to-talk voice transcription system designed for clinical e
 - **Cross-Platform TTS**: macOS `say`, Windows SAPI/pyttsx3, Linux espeak
 - **Session Management**: Local persistence with .txt and .json outputs
 - **Real-time Performance**: 2-3 second transcription with Whisper 'small' on M2
+- **Keyboard Push‑to‑Talk**: Hold SPACE (IT→EN) or F2 (EN→IT)
+- **Audio Controls**: Input device selection, input gain, 2s Mic Test
+- **VU Meter**: Live input level while recording
+- **Robustness**: Guards for short clips and filters for common QTSS subtitle hallucinations
 
 ## 🏗️ Architecture
 
@@ -77,6 +81,16 @@ A privacy-first, push-to-talk voice transcription system designed for clinical e
    ```bash
    python main.py
    ```
+
+### Keyboard Controls (no Stream Deck required)
+
+- Hold `SPACE` to speak Italian → English, release to process
+- Hold `F2` to speak English → Italian, release to process
+- In GUI: choose Input Device, adjust Input Gain, and use "🎙️ Test Mic (2s)"
+
+Tips:
+- Keep the key pressed at least ~0.5–1.0 s for stable capture
+- If the VU bar is low when you speak, increase Input Gain or select a different mic
 
 ## 📋 Detailed Setup Instructions
 
@@ -190,6 +204,12 @@ ENABLE_PERSISTENCE=true               # Save transcriptions
 PRIVACY_MODE=true                     # Require explicit consent
 CONSENT_LLM=false                     # Allow LLM processing
 CONSENT_DEEPL=false                   # Allow DeepL translation
+
+# Keyboard/Audio capture tuning
+MIN_PRESS_MS=350                      # Minimum key press duration (ms) before stopping
+MIN_WAV_BYTES=10000                   # Minimum WAV size gate (~0.31s @16kHz mono)
+AUDIO_INPUT_INDEX=1                   # Preferred input device index (overridden by GUI)
+INPUT_GAIN=1.20                       # Software input gain multiplier (0.5–3.0)
 ```
 
 ### GUI Configuration
@@ -200,6 +220,10 @@ The application provides a minimal GUI for runtime configuration:
 - **Language Selection**: Set transcription language or auto-detect
 - **Text Processing Toggles**: Enable/disable LLM and DeepL
 - **TTS Control**: Toggle text-to-speech output
+- **Input Device**: Select the active microphone
+- **Input Gain**: Boost weak input signals (software gain)
+- **🎙️ Test Mic (2s)**: Records 2 seconds and reports size/duration
+- **VU Meter**: Live input level during recording
 
 ## 🎤 Usage
 
@@ -217,6 +241,10 @@ The application provides a minimal GUI for runtime configuration:
 - **Orange Circle**: Processing transcription
 - **Green Circle**: Processing complete
 
+### Keyboard Visuals
+
+- **VU bar**: Indicates input level (RMS). If it doesn’t move when speaking, check mic/input gain.
+
 ### Text Processing Pipeline
 
 1. **Whisper Transcription**: Local or API-based speech-to-text
@@ -231,29 +259,22 @@ The application provides a minimal GUI for runtime configuration:
 
 ## 🔧 Advanced Configuration
 
-### Custom Text Processors
+### Custom Text Processing
 
-Create custom text processing functions:
+Extend or wrap the default processor:
 
 ```python
 from src.text_processor import TextProcessor
 
-def clinical_abbreviation_expander(text: str) -> str:
-    """Expand clinical abbreviations"""
-    abbreviations = {
-        'pt': 'patient',
-        'hx': 'history',
-        'dx': 'diagnosis',
-        'bp': 'blood pressure'
-    }
-    
-    for abbrev, full in abbreviations.items():
-        text = text.replace(f' {abbrev} ', f' {full} ')
-    return text
+class CustomTextProcessor(TextProcessor):
+    def process_text(self, text: str, target_lang: str = None, **kwargs) -> str:
+        # Run standard pipeline (translation if enabled)
+        base = super().process_text(text, target_lang=target_lang, **kwargs)
+        # Add your post-processing here (e.g., expand abbreviations)
+        base = base.replace(' pt ', ' patient ')
+        return base
 
-# Set custom processor
-text_processor = TextProcessor()
-text_processor.set_custom_processor(clinical_abbreviation_expander)
+# In app wiring, replace TextProcessor with CustomTextProcessor
 ```
 
 ### Local LLM Integration
@@ -345,6 +366,12 @@ Original: Patient presents with chest pain
 - **No Cloud by Default**: External APIs require explicit consent
 - **Consent Management**: Environment flags for each external service
 - **Local Storage Only**: All data stored in `./output/` directory
+
+### Secrets Handling & GitHub Push Protection
+
+- Put API keys only in `.env` (never commit secrets)
+- `clinical_voice_config.json` is ignored by Git and should not contain API keys
+- If GitHub blocks a push for detected secrets, remove the secret from commit history or allow via GitHub UI if false positive
 - **No Telemetry**: No usage data sent anywhere
 
 ### Data Retention
@@ -366,6 +393,21 @@ Original: Patient presents with chest pain
 ## 🚨 Troubleshooting
 
 ### Common Issues
+
+**No speech detected / 0.1s clips**
+```bash
+# Ensure correct input device (GUI > Input Device)
+# Hold key longer (> 0.5–1.0 s)
+# Increase MIN_PRESS_MS (e.g., 500) in .env
+# Raise Input Gain in GUI (software gain)
+```
+
+**Whisper returns subtitle text (QTSS)**
+```bash
+# Short/silent clips can hallucinate subtitles.
+# App filters common QTSS phrases and gates tiny clips.
+# Force language by mode (IT→EN uses it, EN→IT uses en) or set WHISPER_LANGUAGE.
+```
 
 **Stream Deck Not Detected**
 ```bash
@@ -492,8 +534,8 @@ cd clinical-voice-interpreter
 python -m venv venv-dev
 source venv-dev/bin/activate
 
-# Install with development dependencies
-pip install -r requirements-dev.txt
+# Install dependencies
+pip install -r requirements.txt
 
 # Run tests
 pytest tests/
@@ -534,7 +576,7 @@ flake8 src/
 For issues and questions:
 
 1. Check troubleshooting section above
-2. Review [GitHub Issues](repository-url/issues)
+2. Review [GitHub Issues](https://github.com/frantefrante/clinical-voice-interpreter/issues)
 3. Create new issue with:
    - Operating system and version
    - Python version

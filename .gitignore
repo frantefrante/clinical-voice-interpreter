@@ -31,6 +31,8 @@ dist/
 # Project outputs and logs
 output/
 clinical_voice_interpreter.log
+clinical_voice_config.json
+deepl_usage.json
 
 # Temporary audio and artifacts
 *.wav
