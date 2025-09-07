@@ -197,7 +197,12 @@ class ClinicalVoiceInterpreter:
         """Initialize the minimal GUI interface"""
         self.root = tk.Tk()
         self.root.title("Clinical Voice Interpreter")
-        self.root.geometry("700x600")
+        # Larger default size to show translation box without resizing
+        self.root.geometry("1000x800")
+        try:
+            self.root.minsize(900, 700)
+        except Exception:
+            pass
         
         # Main frame
         main_frame = ttk.Frame(self.root, padding="10")
@@ -298,6 +303,23 @@ class ClinicalVoiceInterpreter:
         self.tts_var = tk.BooleanVar(value=self.config.enable_tts)
         ttk.Checkbutton(processing_frame, text="Enable Text-to-Speech", 
                        variable=self.tts_var).grid(row=2, column=0, sticky=tk.W)
+
+        # TTS Voice selection
+        ttk.Label(processing_frame, text="TTS Voice:").grid(row=2, column=1, sticky=tk.W, padx=(10, 5))
+        self.tts_voice_var = tk.StringVar(value=self.config.tts_voice or "")
+        self.tts_voice_combo = ttk.Combobox(processing_frame, textvariable=self.tts_voice_var,
+                                            values=[], state="readonly", width=20)
+        self.tts_voice_combo.grid(row=2, column=2, sticky=tk.W)
+        self.tts_voice_combo.bind('<<ComboboxSelected>>', lambda e: self._on_tts_voice_change())
+
+        # TTS Rate control
+        ttk.Label(processing_frame, text="TTS Rate:").grid(row=3, column=0, sticky=tk.W)
+        self.tts_rate_var = tk.IntVar(value=getattr(self.config, 'tts_rate', 200))
+        tts_rate = ttk.Scale(processing_frame, from_=120, to=240, orient='horizontal', length=180,
+                             command=lambda v: self._on_tts_rate_change(v), variable=self.tts_rate_var)
+        tts_rate.grid(row=3, column=1, sticky=tk.W)
+        self.tts_rate_value = ttk.Label(processing_frame, text=f"{self.tts_rate_var.get()} WPM")
+        self.tts_rate_value.grid(row=3, column=2, sticky=tk.W, padx=(10, 0))
         
         # Keyboard instructions
         instructions_frame = ttk.LabelFrame(main_frame, text="Keyboard Controls", padding="5")
@@ -374,6 +396,8 @@ class ClinicalVoiceInterpreter:
             self.audio_recorder.set_input_gain(self.input_gain_var.get())
         except Exception:
             pass
+        # Populate TTS voices
+        self._populate_tts_voices()
         
         # Start VU updates
         self._schedule_vu_update()
@@ -560,6 +584,14 @@ class ClinicalVoiceInterpreter:
             target_language=self.target_language_var.get()
         )
         self.tts_engine.enabled = self.config.enable_tts
+        # Apply TTS voice/rate
+        try:
+            if self.tts_voice_var.get():
+                self.tts_engine.set_voice(self.tts_voice_var.get())
+            if self.tts_rate_var.get():
+                self.tts_engine.set_rate(int(self.tts_rate_var.get()))
+        except Exception:
+            pass
     
     def _save_config_changes(self):
         """Save configuration changes immediately"""
@@ -875,6 +907,51 @@ class ClinicalVoiceInterpreter:
             self.config_manager.set_env_var('INPUT_GAIN', f"{gain:.2f}")
         except Exception as e:
             self.logger.warning(f"Failed to apply input gain: {e}")
+
+    def _populate_tts_voices(self):
+        """Populate the TTS voice list and select a sensible default"""
+        try:
+            voices = self.tts_engine.get_voices() if hasattr(self, 'tts_engine') else []
+            names = [v.get('name') for v in voices if v.get('name')]
+            self.tts_voice_combo['values'] = names
+            # Select configured or auto-pick by target language
+            current = self.config.tts_voice
+            if current and current in names:
+                self.tts_voice_var.set(current)
+            elif names:
+                # Heuristic: pick a voice matching target language code if available
+                lang = self.target_language_var.get().lower()
+                preferred = None
+                for v in voices:
+                    vlang = (v.get('language') or '').lower()
+                    if lang and lang in vlang:
+                        preferred = v.get('name')
+                        break
+                self.tts_voice_var.set(preferred or names[0])
+        except Exception as e:
+            self.logger.warning(f"Could not populate TTS voices: {e}")
+
+    def _on_tts_voice_change(self):
+        """Apply selected TTS voice and persist"""
+        try:
+            voice = self.tts_voice_var.get()
+            if voice:
+                self.tts_engine.set_voice(voice)
+                self.config.tts_voice = voice
+                self.config_manager.set_env_var('TTS_VOICE', voice)
+        except Exception as e:
+            self.logger.warning(f"Failed to set TTS voice: {e}")
+
+    def _on_tts_rate_change(self, value):
+        """Apply TTS rate updates and persist"""
+        try:
+            rate = int(float(value))
+            self.tts_rate_value.config(text=f"{rate} WPM")
+            self.tts_engine.set_rate(rate)
+            self.config.tts_rate = rate
+            self.config_manager.set_env_var('TTS_RATE', str(rate))
+        except Exception as e:
+            self.logger.warning(f"Failed to set TTS rate: {e}")
 
     def _schedule_vu_update(self):
         """Periodic UI update for the VU bar based on input level"""
