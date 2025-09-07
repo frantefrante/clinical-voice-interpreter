@@ -236,7 +236,7 @@ class ClinicalVoiceInterpreter:
         ttk.Label(config_frame, text="Input Language:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5), pady=(5, 0))
         self.language_var = tk.StringVar(value=self.config.whisper_language or "auto")
         language_combo = ttk.Combobox(config_frame, textvariable=self.language_var,
-                                    values=["auto", "en", "it", "es", "fr", "de"],
+                                    values=["auto", "en", "it", "es", "fr", "de", "zh", "ar", "bn", "sq"],
                                     state="readonly", width=15)
         language_combo.grid(row=1, column=1, sticky=tk.W, pady=(5, 0))
         
@@ -244,7 +244,7 @@ class ClinicalVoiceInterpreter:
         ttk.Label(config_frame, text="Translate to:").grid(row=2, column=0, sticky=tk.W, padx=(0, 5), pady=(5, 0))
         self.target_language_var = tk.StringVar(value="en")  # Default to English
         target_combo = ttk.Combobox(config_frame, textvariable=self.target_language_var,
-                                   values=["en", "it", "es", "fr", "de"],
+                                   values=["en", "it", "es", "fr", "de", "zh", "ar", "bn", "sq"],
                                    state="readonly", width=15)
         target_combo.grid(row=2, column=1, sticky=tk.W, pady=(5, 0))
 
@@ -451,7 +451,12 @@ class ClinicalVoiceInterpreter:
 
         # Force Whisper language by mode to reduce hallucinations
         try:
-            forced_lang = 'it' if translation_mode == 'it_to_en' else 'en'
+            if translation_mode == 'it_to_en':
+                # Forward: from Italian (fixed) to selected target
+                forced_lang = 'it'
+            else:
+                # Reverse: from selected target back to Italian
+                forced_lang = self.target_language_var.get() or 'en'
             self.transcriber.update_model(language=forced_lang)
         except Exception:
             pass
@@ -659,13 +664,14 @@ class ClinicalVoiceInterpreter:
             # Process text with bidirectional translation
             if hasattr(self, 'current_translation_mode'):
                 if self.current_translation_mode == 'it_to_en':
-                    # Italian to English
-                    processed_text = self.text_processor.process_text(transcription, target_lang='en')
-                    self.logger.info("Translation: Italian → English")
+                    # Forward: Italian to selected target language
+                    tgt = self.target_language_var.get() or 'en'
+                    processed_text = self.text_processor.process_text(transcription, target_lang=tgt)
+                    self.logger.info(f"Translation: Italian → {tgt}")
                 elif self.current_translation_mode == 'en_to_it':
-                    # English to Italian  
+                    # Reverse: from selected target language back to Italian
                     processed_text = self.text_processor.process_text(transcription, target_lang='it')
-                    self.logger.info("Translation: English → Italian")
+                    self.logger.info("Translation: Target → Italian")
                 else:
                     # Default fallback
                     processed_text = self.text_processor.process_text(transcription)

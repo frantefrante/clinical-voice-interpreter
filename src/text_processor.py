@@ -159,8 +159,15 @@ class TextProcessor:
             try:
                 # Map language codes for DeepL API
                 deepl_lang_map = {
-                    "en": "EN-US", "it": "IT", "es": "ES", 
-                    "fr": "FR", "de": "DE", "pt": "PT-PT"
+                    "en": "EN-US",
+                    "it": "IT",
+                    "es": "ES",
+                    "fr": "FR",
+                    "de": "DE",
+                    "pt": "PT-PT",
+                    # Additional languages (DeepL supports AR, ZH; BN and SQ likely unsupported)
+                    "ar": "AR",
+                    "zh": "ZH"
                 }
                 deepl_target = deepl_lang_map.get(target_lang.lower(), "EN-US")
                 
@@ -186,7 +193,17 @@ class TextProcessor:
         if self.google_translator:
             try:
                 # Map language codes for Google Translate
-                lang_map = {"it": "italian", "en": "english", "es": "spanish", "fr": "french", "de": "german"}
+                lang_map = {
+                    "it": "italian",
+                    "en": "english",
+                    "es": "spanish",
+                    "fr": "french",
+                    "de": "german",
+                    "zh": "chinese",
+                    "ar": "arabic",
+                    "bn": "bengali",
+                    "sq": "albanian",
+                }
                 target_lang_name = lang_map.get(target_lang.lower(), "english")
                 
                 # Create new translator for specific target language
