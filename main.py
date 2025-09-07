@@ -1041,7 +1041,15 @@ class ClinicalVoiceInterpreter:
 
     def _select_piper_model(self):
         try:
-            path = filedialog.askopenfilename(title="Select Piper Model", filetypes=[("Piper model", "*.onnx"), ("All files", "*.*")])
+            initdir = getattr(self.config, 'piper_models_dir', None) or os.path.expanduser("~")
+            path = filedialog.askopenfilename(
+                title="Select Piper Model",
+                initialdir=initdir,
+                filetypes=[
+                    ("Piper models", "*.onnx *.ONNX *.onnx.gz *.ONNX.GZ"),
+                    ("All files", "*")
+                ]
+            )
             if not path:
                 return
             self.config.piper_model = path
@@ -1061,10 +1069,16 @@ class ClinicalVoiceInterpreter:
             self.config_manager.set_env_var('PIPER_MODELS_DIR', folder)
             # If no current model, try picking one from folder
             if not getattr(self.config, 'piper_model', None):
-                for fn in os.listdir(folder):
-                    if fn.lower().endswith('.onnx'):
-                        self.config.piper_model = os.path.join(folder, fn)
-                        self.config_manager.set_env_var('PIPER_MODEL', self.config.piper_model)
+                # Search recursively for first .onnx
+                for root, _, files in os.walk(folder):
+                    for fn in files:
+                        low = fn.lower()
+                        if low.endswith('.onnx') or low.endswith('.onnx.gz'):
+                            self.config.piper_model = os.path.join(root, fn)
+                            self.config_manager.set_env_var('PIPER_MODEL', self.config.piper_model)
+                            folder = root  # prefer the model's folder for scanning
+                            break
+                    if getattr(self.config, 'piper_model', None):
                         break
             self._reinit_tts_engine()
             self._update_tts_backend_ui()

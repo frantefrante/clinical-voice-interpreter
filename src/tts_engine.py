@@ -57,6 +57,9 @@ class TTSEngine:
         try:
             # Piper backend (optional, supersedes platform backends)
             if self.backend == 'piper':
+                self.logger.info("Attempting to initialize Piper TTS backend...")
+                self.logger.info(f"Piper model path: {self.piper_model}")
+                self.logger.info(f"Piper path: {self.piper_path}")
                 try:
                     from piper_tts import PiperTTS
                     self.piper_engine = PiperTTS(
@@ -66,14 +69,16 @@ class TTSEngine:
                         voice=self.voice,
                     )
                     if not self.piper_engine.is_available():
-                        self.logger.warning("Piper TTS not available. Falling back to system TTS.")
+                        self.logger.warning("⚠️  Piper TTS not available. Falling back to system TTS.")
+                        self.logger.warning("Check that the model file exists and Piper library is installed.")
                         self.backend = None
                         self.piper_engine = None
                     else:
-                        self.logger.info("Piper TTS initialized")
+                        self.logger.info("✅ Piper TTS initialized successfully!")
+                        self.logger.info(f"Using Piper model: {self.piper_model}")
                         return
                 except Exception as e:
-                    self.logger.error(f"Failed to initialize Piper TTS: {e}")
+                    self.logger.error(f"❌ Failed to initialize Piper TTS: {e}")
                     self.backend = None
 
             if self.platform == "darwin":  # macOS
@@ -243,12 +248,16 @@ class TTSEngine:
             self.speaking = True
             
             if self.backend == 'piper' and self.piper_engine:
+                self.logger.info(f"🔊 Speaking with Piper TTS: '{text[:50]}{'...' if len(text) > 50 else ''}'")
                 self.piper_engine.speak(text)
             elif self.platform == "darwin":
+                self.logger.info(f"🔊 Speaking with macOS say: '{text[:50]}{'...' if len(text) > 50 else ''}'")
                 self._speak_macos(text)
             elif self.platform == "windows":
+                self.logger.info(f"🔊 Speaking with Windows SAPI: '{text[:50]}{'...' if len(text) > 50 else ''}'")
                 self._speak_windows(text)
             elif self.platform == "linux":
+                self.logger.info(f"🔊 Speaking with Linux espeak: '{text[:50]}{'...' if len(text) > 50 else ''}'")
                 self._speak_linux(text)
                 
         except Exception as e:
