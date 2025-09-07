@@ -101,6 +101,19 @@ class PiperTTS:
         self.voice = voice_name
         return True
 
+    def set_model(self, model_path: str) -> bool:
+        try:
+            if model_path and os.path.exists(model_path):
+                self.model_path = model_path
+                self.logger.info(f"Piper model set to: {model_path}")
+                return True
+            else:
+                self.logger.warning(f"Piper model does not exist: {model_path}")
+                return False
+        except Exception as e:
+            self.logger.error(f"Failed to set Piper model: {e}")
+            return False
+
     def set_rate(self, rate: int) -> bool:
         # Piper CLI does not directly accept rate; can be emulated via length_scale in models
         # Keep value for future use (e.g., when adding length_scale mapping)
@@ -109,4 +122,3 @@ class PiperTTS:
 
     def cleanup(self):
         pass
-

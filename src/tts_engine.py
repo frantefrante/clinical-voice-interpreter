@@ -494,7 +494,12 @@ class TTSEngine:
                     self.tts_engine.stop()
                 except:
                     pass
-                    
+            if self.piper_engine:
+                try:
+                    self.piper_engine.cleanup()
+                except Exception:
+                    pass
+                
             self.logger.info("TTS engine cleanup completed")
             
         except Exception as e:

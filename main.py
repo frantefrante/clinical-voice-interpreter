@@ -308,11 +308,19 @@ class ClinicalVoiceInterpreter:
         ttk.Checkbutton(processing_frame, text="Enable Text-to-Speech", 
                        variable=self.tts_var).grid(row=2, column=0, sticky=tk.W)
 
+        # TTS Backend selection
+        ttk.Label(processing_frame, text="TTS Backend:").grid(row=0, column=1, sticky=tk.W, padx=(10, 5))
+        self.tts_backend_var = tk.StringVar(value=(getattr(self.config, 'tts_backend', None) or 'system'))
+        self.tts_backend_combo = ttk.Combobox(processing_frame, textvariable=self.tts_backend_var,
+                                              values=['system', 'piper'], state='readonly', width=12)
+        self.tts_backend_combo.grid(row=0, column=2, sticky=tk.W)
+        self.tts_backend_combo.bind('<<ComboboxSelected>>', lambda e: self._on_tts_backend_change())
+
         # TTS Voice selection
         ttk.Label(processing_frame, text="TTS Voice:").grid(row=2, column=1, sticky=tk.W, padx=(10, 5))
         self.tts_voice_var = tk.StringVar(value=self.config.tts_voice or "")
         self.tts_voice_combo = ttk.Combobox(processing_frame, textvariable=self.tts_voice_var,
-                                            values=[], state="readonly", width=20)
+                                            values=[], state="readonly", width=28)
         self.tts_voice_combo.grid(row=2, column=2, sticky=tk.W)
         self.tts_voice_combo.bind('<<ComboboxSelected>>', lambda e: self._on_tts_voice_change())
 
@@ -324,6 +332,13 @@ class ClinicalVoiceInterpreter:
         tts_rate.grid(row=3, column=1, sticky=tk.W)
         self.tts_rate_value = ttk.Label(processing_frame, text=f"{self.tts_rate_var.get()} WPM")
         self.tts_rate_value.grid(row=3, column=2, sticky=tk.W, padx=(10, 0))
+
+        # Piper model selection controls (visible only when backend=piper)
+        self.piper_model_label = ttk.Label(processing_frame, text="Model: (not set)")
+        self.piper_model_label.grid(row=4, column=1, sticky=tk.W, padx=(10, 5))
+        self.piper_model_button = ttk.Button(processing_frame, text="Select Piper Model...",
+                                             command=self._select_piper_model)
+        self.piper_model_button.grid(row=4, column=2, sticky=tk.W)
         
         # Keyboard instructions
         instructions_frame = ttk.LabelFrame(main_frame, text="Keyboard Controls", padding="5")
@@ -400,8 +415,9 @@ class ClinicalVoiceInterpreter:
             self.audio_recorder.set_input_gain(self.input_gain_var.get())
         except Exception:
             pass
-        # Populate TTS voices
+        # Populate TTS voices and backend UI
         self._populate_tts_voices()
+        self._update_tts_backend_ui()
         
         # Start VU updates
         self._schedule_vu_update()
@@ -915,36 +931,122 @@ class ClinicalVoiceInterpreter:
     def _populate_tts_voices(self):
         """Populate the TTS voice list and select a sensible default"""
         try:
-            voices = self.tts_engine.get_voices() if hasattr(self, 'tts_engine') else []
-            names = [v.get('name') for v in voices if v.get('name')]
-            self.tts_voice_combo['values'] = names
-            # Select configured or auto-pick by target language
+            backend = (self.tts_backend_var.get() or 'system').lower()
+            names = []
+            display_names = []
+            if backend == 'piper':
+                model_path = getattr(self.config, 'piper_model', None)
+                if model_path and os.path.exists(model_path):
+                    base = os.path.basename(model_path)
+                    names = [base]
+                    display_names = [f"Piper: {base}"]
+                else:
+                    names = []
+                    display_names = []
+            else:
+                voices = self.tts_engine.get_voices() if hasattr(self, 'tts_engine') else []
+                all_names = [v.get('name') for v in voices if v.get('name')]
+                curated = {
+                    'Samantha','Alex','Victoria','Daniel','Fiona','Karen',
+                    'Alice','Federica',
+                    'Thomas','Amelie','Marine',
+                    'Anna','Markus','Petra','Steffi',
+                    'Jorge','Monica','Paulina','Diego',
+                    'Luciana','Joana',
+                    'Ting-Ting','Mei-Jia','Li-mu',
+                    'Maged','Tarik','Laila'
+                }
+                names = [n for n in all_names if n in curated]
+                if not names:
+                    names = all_names[:10]
+                display_names = [f"System: {n}" for n in names]
+
+            self.tts_voice_combo['values'] = display_names
             current = self.config.tts_voice
-            if current and current in names:
-                self.tts_voice_var.set(current)
-            elif names:
-                # Heuristic: pick a voice matching target language code if available
-                lang = self.target_language_var.get().lower()
-                preferred = None
-                for v in voices:
-                    vlang = (v.get('language') or '').lower()
-                    if lang and lang in vlang:
-                        preferred = v.get('name')
+            if current and any(current in dn for dn in display_names):
+                for dn in display_names:
+                    if current in dn:
+                        self.tts_voice_var.set(dn)
                         break
-                self.tts_voice_var.set(preferred or names[0])
+            elif display_names:
+                self.tts_voice_var.set(display_names[0])
         except Exception as e:
             self.logger.warning(f"Could not populate TTS voices: {e}")
 
     def _on_tts_voice_change(self):
         """Apply selected TTS voice and persist"""
         try:
-            voice = self.tts_voice_var.get()
-            if voice:
-                self.tts_engine.set_voice(voice)
+            backend = (self.tts_backend_var.get() or 'system').lower()
+            sel = self.tts_voice_var.get() or ''
+            voice = sel.replace('Piper: ', '').replace('System: ', '')
+            if backend == 'piper':
+                # Persist display-only voice name (model basename)
                 self.config.tts_voice = voice
-                self.config_manager.set_env_var('TTS_VOICE', voice)
+            else:
+                if voice:
+                    self.tts_engine.set_voice(voice)
+                    self.config.tts_voice = voice
+                    self.config_manager.set_env_var('TTS_VOICE', voice)
         except Exception as e:
             self.logger.warning(f"Failed to set TTS voice: {e}")
+
+    def _on_tts_backend_change(self):
+        try:
+            backend = (self.tts_backend_var.get() or 'system').lower()
+            self.config.tts_backend = backend
+            self.config_manager.set_env_var('TTS_BACKEND', backend)
+            self._reinit_tts_engine()
+            self._update_tts_backend_ui()
+            self._populate_tts_voices()
+        except Exception as e:
+            self.logger.warning(f"Failed to change TTS backend: {e}")
+
+    def _update_tts_backend_ui(self):
+        backend = (self.tts_backend_var.get() or 'system').lower()
+        show_piper = backend == 'piper'
+        try:
+            if show_piper:
+                model_path = getattr(self.config, 'piper_model', None)
+                txt = f"Model: {os.path.basename(model_path)}" if model_path else "Model: (not set)"
+                self.piper_model_label.config(text=txt)
+                self.piper_model_label.grid()
+                self.piper_model_button.grid()
+            else:
+                self.piper_model_label.grid_remove()
+                self.piper_model_button.grid_remove()
+        except Exception:
+            pass
+
+    def _select_piper_model(self):
+        try:
+            path = filedialog.askopenfilename(title="Select Piper Model", filetypes=[("Piper model", "*.onnx"), ("All files", "*.*")])
+            if not path:
+                return
+            self.config.piper_model = path
+            self.config_manager.set_env_var('PIPER_MODEL', path)
+            self._reinit_tts_engine()
+            self._update_tts_backend_ui()
+            self._populate_tts_voices()
+        except Exception as e:
+            self.logger.error(f"Failed to set Piper model: {e}")
+
+    def _reinit_tts_engine(self):
+        try:
+            if hasattr(self, 'tts_engine') and self.tts_engine:
+                try:
+                    self.tts_engine.cleanup()
+                except Exception:
+                    pass
+            self.tts_engine = TTSEngine(
+                enabled=self.config.enable_tts,
+                voice=self.config.tts_voice,
+                rate=self.config.tts_rate,
+                backend=getattr(self.config, 'tts_backend', None),
+                piper_path=getattr(self.config, 'piper_path', None),
+                piper_model=getattr(self.config, 'piper_model', None),
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to reinitialize TTS engine: {e}")
 
     def _on_tts_rate_change(self, value):
         """Apply TTS rate updates and persist"""
