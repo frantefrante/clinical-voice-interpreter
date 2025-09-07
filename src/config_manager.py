@@ -42,6 +42,7 @@ class ClinicalVoiceConfig:
     # Piper TTS settings
     piper_path: Optional[str] = None
     piper_model: Optional[str] = None
+    piper_models_dir: Optional[str] = None
     
     # Storage settings
     output_dir: str = "./output"
@@ -184,6 +185,8 @@ class ConfigManager:
             env_overrides['piper_path'] = os.getenv('PIPER_PATH')
         if os.getenv('PIPER_MODEL'):
             env_overrides['piper_model'] = os.getenv('PIPER_MODEL')
+        if os.getenv('PIPER_MODELS_DIR'):
+            env_overrides['piper_models_dir'] = os.getenv('PIPER_MODELS_DIR')
                 
         # Storage settings
         if os.getenv('OUTPUT_DIR'):

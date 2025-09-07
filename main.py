@@ -339,6 +339,11 @@ class ClinicalVoiceInterpreter:
         self.piper_model_button = ttk.Button(processing_frame, text="Select Piper Model...",
                                              command=self._select_piper_model)
         self.piper_model_button.grid(row=4, column=2, sticky=tk.W)
+        self.piper_models_dir_button = ttk.Button(processing_frame, text="Select Models Folder...",
+                                                  command=self._select_piper_models_folder)
+        self.piper_models_dir_button.grid(row=5, column=2, sticky=tk.W, pady=(2,0))
+        # Internal mapping for piper names -> paths
+        self._piper_name_to_path = {}
         
         # Keyboard instructions
         instructions_frame = ttk.LabelFrame(main_frame, text="Keyboard Controls", padding="5")
@@ -935,14 +940,24 @@ class ClinicalVoiceInterpreter:
             names = []
             display_names = []
             if backend == 'piper':
+                self._piper_name_to_path = {}
+                # From configured single model
                 model_path = getattr(self.config, 'piper_model', None)
                 if model_path and os.path.exists(model_path):
                     base = os.path.basename(model_path)
-                    names = [base]
-                    display_names = [f"Piper: {base}"]
-                else:
-                    names = []
-                    display_names = []
+                    self._piper_name_to_path[base] = model_path
+                # From scanned directory
+                models_dir = getattr(self.config, 'piper_models_dir', None)
+                if models_dir and os.path.isdir(models_dir):
+                    try:
+                        for fn in os.listdir(models_dir):
+                            if fn.lower().endswith('.onnx'):
+                                full = os.path.join(models_dir, fn)
+                                self._piper_name_to_path.setdefault(fn, full)
+                    except Exception:
+                        pass
+                names = list(self._piper_name_to_path.keys())
+                display_names = [f"Piper: {n}" for n in names]
             else:
                 voices = self.tts_engine.get_voices() if hasattr(self, 'tts_engine') else []
                 all_names = [v.get('name') for v in voices if v.get('name')]
@@ -980,8 +995,13 @@ class ClinicalVoiceInterpreter:
             sel = self.tts_voice_var.get() or ''
             voice = sel.replace('Piper: ', '').replace('System: ', '')
             if backend == 'piper':
-                # Persist display-only voice name (model basename)
-                self.config.tts_voice = voice
+                # Map display name to full model path and persist
+                if voice in self._piper_name_to_path:
+                    model_path = self._piper_name_to_path[voice]
+                    self.config.tts_voice = voice
+                    self.config.piper_model = model_path
+                    self.config_manager.set_env_var('PIPER_MODEL', model_path)
+                    self._reinit_tts_engine()
             else:
                 if voice:
                     self.tts_engine.set_voice(voice)
@@ -1011,9 +1031,11 @@ class ClinicalVoiceInterpreter:
                 self.piper_model_label.config(text=txt)
                 self.piper_model_label.grid()
                 self.piper_model_button.grid()
+                self.piper_models_dir_button.grid()
             else:
                 self.piper_model_label.grid_remove()
                 self.piper_model_button.grid_remove()
+                self.piper_models_dir_button.grid_remove()
         except Exception:
             pass
 
@@ -1029,6 +1051,26 @@ class ClinicalVoiceInterpreter:
             self._populate_tts_voices()
         except Exception as e:
             self.logger.error(f"Failed to set Piper model: {e}")
+
+    def _select_piper_models_folder(self):
+        try:
+            folder = filedialog.askdirectory(title="Select Piper Models Folder")
+            if not folder:
+                return
+            self.config.piper_models_dir = folder
+            self.config_manager.set_env_var('PIPER_MODELS_DIR', folder)
+            # If no current model, try picking one from folder
+            if not getattr(self.config, 'piper_model', None):
+                for fn in os.listdir(folder):
+                    if fn.lower().endswith('.onnx'):
+                        self.config.piper_model = os.path.join(folder, fn)
+                        self.config_manager.set_env_var('PIPER_MODEL', self.config.piper_model)
+                        break
+            self._reinit_tts_engine()
+            self._update_tts_backend_ui()
+            self._populate_tts_voices()
+        except Exception as e:
+            self.logger.error(f"Failed to set Piper models folder: {e}")
 
     def _reinit_tts_engine(self):
         try:
