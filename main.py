@@ -22,7 +22,7 @@ from typing import Optional, Dict, Any, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 
 # Aggiungi il percorso src al PYTHONPATH
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
