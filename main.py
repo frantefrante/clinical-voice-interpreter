@@ -162,10 +162,14 @@ class ClinicalVoiceInterpreter:
                 privacy_mode=self.config.privacy_mode
             )
             
-            # TTS engine
+            # TTS engine (supports system or Piper backend)
             self.tts_engine = TTSEngine(
                 enabled=self.config.enable_tts,
-                voice=self.config.tts_voice
+                voice=self.config.tts_voice,
+                rate=self.config.tts_rate,
+                backend=getattr(self.config, 'tts_backend', None),
+                piper_path=getattr(self.config, 'piper_path', None),
+                piper_model=getattr(self.config, 'piper_model', None),
             )
             
             # Session manager for persistence

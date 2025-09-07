@@ -26,11 +26,14 @@ class TTSEngine:
     - Linux: Uses espeak as fallback
     """
     
-    def __init__(self, enabled: bool = True, voice: Optional[str] = None, rate: int = 200):
+    def __init__(self, enabled: bool = True, voice: Optional[str] = None, rate: int = 200,
+                 backend: Optional[str] = None, piper_path: Optional[str] = None,
+                 piper_model: Optional[str] = None):
         self.enabled = enabled
         self.voice = voice
         self.rate = rate
         self.platform = platform.system().lower()
+        self.backend = (backend or '').lower() if backend else None
         
         # TTS queue for managing speech requests
         self.speech_queue = queue.Queue()
@@ -39,6 +42,9 @@ class TTSEngine:
         
         # Platform-specific TTS engine
         self.tts_engine = None
+        self.piper_engine = None
+        self.piper_path = piper_path
+        self.piper_model = piper_model
         
         self.logger = logging.getLogger(__name__)
         
@@ -49,6 +55,27 @@ class TTSEngine:
     def _init_tts_engine(self):
         """Initialize platform-specific TTS engine"""
         try:
+            # Piper backend (optional, supersedes platform backends)
+            if self.backend == 'piper':
+                try:
+                    from piper_tts import PiperTTS
+                    self.piper_engine = PiperTTS(
+                        piper_path=self.piper_path,
+                        model_path=self.piper_model,
+                        rate=self.rate,
+                        voice=self.voice,
+                    )
+                    if not self.piper_engine.is_available():
+                        self.logger.warning("Piper TTS not available. Falling back to system TTS.")
+                        self.backend = None
+                        self.piper_engine = None
+                    else:
+                        self.logger.info("Piper TTS initialized")
+                        return
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize Piper TTS: {e}")
+                    self.backend = None
+
             if self.platform == "darwin":  # macOS
                 self._init_macos_tts()
             elif self.platform == "windows":  # Windows
@@ -215,7 +242,9 @@ class TTSEngine:
         try:
             self.speaking = True
             
-            if self.platform == "darwin":
+            if self.backend == 'piper' and self.piper_engine:
+                self.piper_engine.speak(text)
+            elif self.platform == "darwin":
                 self._speak_macos(text)
             elif self.platform == "windows":
                 self._speak_windows(text)
@@ -299,7 +328,10 @@ class TTSEngine:
         
         # Platform-specific stop commands
         try:
-            if self.platform == "darwin":
+            if self.backend == 'piper' and self.piper_engine:
+                # Piper playback is synchronous; nothing to stop except queue
+                pass
+            elif self.platform == "darwin":
                 subprocess.run(['killall', 'say'], capture_output=True)
             elif self.platform == "windows" and self.tts_engine:
                 self.tts_engine.stop()
@@ -310,7 +342,9 @@ class TTSEngine:
     def get_voices(self) -> List[Dict[str, str]]:
         """Get available voices for current platform"""
         try:
-            if self.platform == "darwin":
+            if self.backend == 'piper' and self.piper_engine:
+                return self.piper_engine.get_voices()
+            elif self.platform == "darwin":
                 return self._get_macos_voices()
             elif self.platform == "windows":
                 return self._get_windows_voices()
@@ -378,6 +412,12 @@ class TTSEngine:
         try:
             self.voice = voice_name
             
+            if self.backend == 'piper' and self.piper_engine:
+                # Piper doesn't support named voices beyond model selection
+                # Change is applied by selecting another model externally
+                self.voice = voice_name
+                self.logger.info(f"Piper voice preference set to: {voice_name}")
+                return True
             if self.platform == "windows" and self.tts_engine:
                 voices = self.tts_engine.getProperty('voices')
                 for voice in voices:
@@ -398,6 +438,9 @@ class TTSEngine:
         try:
             self.rate = max(50, min(500, rate))  # Clamp to reasonable range
             
+            if self.backend == 'piper' and self.piper_engine:
+                self.piper_engine.set_rate(self.rate)
+                
             if self.platform == "windows" and self.tts_engine:
                 self.tts_engine.setProperty('rate', self.rate)
                 

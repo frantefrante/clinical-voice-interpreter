@@ -37,6 +37,11 @@ class ClinicalVoiceConfig:
     enable_tts: bool = True
     tts_voice: Optional[str] = None
     tts_rate: int = 200
+    # TTS backend: 'system' (default) or 'piper'
+    tts_backend: Optional[str] = None
+    # Piper TTS settings
+    piper_path: Optional[str] = None
+    piper_model: Optional[str] = None
     
     # Storage settings
     output_dir: str = "./output"
@@ -161,15 +166,24 @@ class ConfigManager:
         # TTS settings
         if os.getenv('ENABLE_TTS'):
             env_overrides['enable_tts'] = os.getenv('ENABLE_TTS').lower() in ['true', '1', 'yes']
-            
+        
         if os.getenv('TTS_VOICE'):
             env_overrides['tts_voice'] = os.getenv('TTS_VOICE')
-            
+        
         if os.getenv('TTS_RATE'):
             try:
                 env_overrides['tts_rate'] = int(os.getenv('TTS_RATE'))
             except ValueError:
                 self.logger.warning(f"Invalid TTS_RATE: {os.getenv('TTS_RATE')}")
+        
+        if os.getenv('TTS_BACKEND'):
+            env_overrides['tts_backend'] = os.getenv('TTS_BACKEND').lower()
+        
+        # Piper specific
+        if os.getenv('PIPER_PATH'):
+            env_overrides['piper_path'] = os.getenv('PIPER_PATH')
+        if os.getenv('PIPER_MODEL'):
+            env_overrides['piper_model'] = os.getenv('PIPER_MODEL')
                 
         # Storage settings
         if os.getenv('OUTPUT_DIR'):
