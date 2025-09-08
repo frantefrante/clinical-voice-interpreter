@@ -349,37 +349,21 @@ class ClinicalVoiceInterpreter:
         settings_button = ttk.Button(instructions_frame, text="⚙️ Settings", command=self._open_settings_window)
         settings_button.grid(row=4, column=2, sticky=tk.W, pady=(5, 0))
         
-        # Control buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=5, column=0, columnspan=2, pady=(10, 0))
-        
-        self.start_button = ttk.Button(button_frame, text="Start Service", 
-                                     command=self._start_service)
-        self.start_button.grid(row=0, column=0, padx=(0, 5))
-        
-        self.stop_button = ttk.Button(button_frame, text="Stop Service", 
-                                    command=self._stop_service, state="disabled")
-        self.stop_button.grid(row=0, column=1, padx=(5, 0))
-        
-        # LLM Analysis buttons (second row)
-        self.review_button = ttk.Button(button_frame, text="🔍 Review Conversation", 
-                                      command=self._review_conversation)
-        self.review_button.grid(row=1, column=0, padx=(0, 5), pady=(5, 0))
-        
-        self.query_button = ttk.Button(button_frame, text="💬 LLM Query", 
-                                     command=self._show_query_dialog)
-        self.query_button.grid(row=1, column=1, padx=(5, 0), pady=(5, 0))
-        
-        # Output display
-        output_frame = ttk.LabelFrame(main_frame, text="Latest Transcription", padding="5")
-        output_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
-        
-        self.output_text = tk.Text(output_frame, height=8, wrap=tk.WORD)
-        scrollbar = ttk.Scrollbar(output_frame, orient="vertical", command=self.output_text.yview)
-        self.output_text.configure(yscrollcommand=scrollbar.set)
-        
-        self.output_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        # Right column cards: AI + Service Control
+        sidebar = ttk.Frame(main_frame)
+        sidebar.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        ai_panel = ttk.LabelFrame(sidebar, text="AI Assistant", padding="10")
+        ai_panel.grid(row=0, column=0, sticky=tk.W, padx=(0,10))
+        ttk.Button(ai_panel, text="🔍 Review Conversation", command=self._review_conversation).grid(row=0, column=0, sticky=tk.W)
+        ttk.Button(ai_panel, text="💬 Ask AI Question", command=self._show_query_dialog).grid(row=0, column=1, sticky=tk.W, padx=(6,0))
+        svc = ttk.LabelFrame(sidebar, text="Service Control", padding="10")
+        svc.grid(row=0, column=1, sticky=tk.W)
+        self.start_button = ttk.Button(svc, text="🟢 Start Service", command=self._start_service)
+        self.stop_button = ttk.Button(svc, text="⏹ Stop Service", command=self._stop_service, state="disabled")
+        ttk.Button(svc, text="🎙️ Test Microphone", command=lambda: self._test_microphone(2)).grid(row=1, column=0, sticky=tk.W, pady=(6,0))
+        ttk.Button(svc, text="⚙️ Settings", command=self._open_settings_window).grid(row=1, column=1, sticky=tk.W, padx=(6,0), pady=(6,0))
+        self.start_button.grid(row=0, column=0, sticky=tk.W)
+        self.stop_button.grid(row=0, column=1, sticky=tk.W, padx=(6,0))
         
         # Bind Enter key for manual text translation - DISABLED FOR NOW
         # self.output_text.bind('<Return>', self._on_manual_text_entry)
