@@ -349,6 +349,17 @@ class ClinicalVoiceInterpreter:
         settings_button = ttk.Button(instructions_frame, text="⚙️ Settings", command=self._open_settings_window)
         settings_button.grid(row=4, column=2, sticky=tk.W, pady=(5, 0))
         
+        # Conversation history (restored)
+        history_frame = ttk.LabelFrame(main_frame, text="Conversation History", padding="10")
+        history_frame.grid(row=6, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(10, 0))
+        history_frame.columnconfigure(0, weight=1)
+        history_frame.rowconfigure(0, weight=1)
+        self.output_text = tk.Text(history_frame, height=10, wrap=tk.WORD)
+        hist_scroll = ttk.Scrollbar(history_frame, orient="vertical", command=self.output_text.yview)
+        self.output_text.configure(yscrollcommand=hist_scroll.set)
+        self.output_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        hist_scroll.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
         # Right column cards: AI + Service Control
         sidebar = ttk.Frame(main_frame)
         sidebar.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
@@ -373,8 +384,6 @@ class ClinicalVoiceInterpreter:
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(6, weight=1)
-        output_frame.columnconfigure(0, weight=1)
-        output_frame.rowconfigure(0, weight=1)
         
         # Keyboard controls
         self._setup_keyboard_controls()
@@ -385,9 +394,7 @@ class ClinicalVoiceInterpreter:
             self.audio_recorder.set_input_gain(self.input_gain_var.get())
         except Exception:
             pass
-        # Populate TTS voices and backend UI
-        self._populate_tts_voices()
-        self._update_tts_backend_ui()
+        # TTS voice/backend UI is managed via Settings window
         
         # Auto-select appropriate TTS voice based on current language settings
         self._auto_select_tts_voice_for_current_settings()
@@ -418,7 +425,7 @@ class ClinicalVoiceInterpreter:
     def _on_global_key_press(self, event):
         """Handle global keyboard press - check if text widget has focus"""
         # Don't interfere if text widget has focus (user is typing)
-        if self.root.focus_get() == self.output_text:
+        if hasattr(self, 'output_text') and self.root.focus_get() == self.output_text:
             return
             
         # Determine translation mode from key
@@ -430,7 +437,7 @@ class ClinicalVoiceInterpreter:
     def _on_global_key_release(self, event):
         """Handle global keyboard release - check if text widget has focus"""
         # Don't interfere if text widget has focus (user is typing)
-        if self.root.focus_get() == self.output_text:
+        if hasattr(self, 'output_text') and self.root.focus_get() == self.output_text:
             return
             
         # Determine translation mode from key
@@ -1086,7 +1093,8 @@ class ClinicalVoiceInterpreter:
         """Get the best Piper voice for a given language code"""
         # Mapping language codes to preferred Piper models
         language_mapping = {
-            'it': ['it_IT-riccardo-x_low.onnx', 'it_IT-paola-medium.onnx'],
+            # Prefer Paola by default for Italian; fallback to Riccardo if Paola missing
+            'it': ['it_IT-paola-medium.onnx', 'it_IT-riccardo-x_low.onnx'],
             'en': ['en_GB-alan-medium.onnx'],
             'es': ['es_ES-davefx-medium.onnx'],
             'fr': ['fr_FR-mls-medium.onnx'],
@@ -1137,13 +1145,13 @@ class ClinicalVoiceInterpreter:
             # Determine target language based on translation mode
             # TTS should speak the TRANSLATION, not the original
             if translation_mode == 'it_to_en':
-                # Italian to English - use English voice for the translated English text
-                target_lang = 'en'
-                self.logger.info(f"IT→EN mode: selecting English voice for translation")
+                # Forward mode: Italian → <Target>
+                target_lang = (self.target_language_var.get() or 'en').lower()
+                self.logger.info(f"Forward mode: selecting voice for target language '{target_lang}'")
             elif translation_mode == 'en_to_it':
-                # English to Italian - use Italian voice for the translated Italian text
+                # Reverse mode: <Target> → Italian
                 target_lang = 'it'
-                self.logger.info(f"EN→IT mode: selecting Italian voice for translation")
+                self.logger.info("Reverse mode: selecting Italian voice for translation")
             else:
                 self.logger.warning(f"Unknown translation mode: {translation_mode}")
                 return
