@@ -222,9 +222,17 @@ class ClinicalVoiceInterpreter:
         self.recording_indicator = ttk.Label(status_frame, text="●", foreground="gray")
         self.recording_indicator.grid(row=0, column=1, sticky=tk.E)
         
+        # Translation status indicator - single clear line
+        translation_status_frame = ttk.Frame(status_frame)
+        translation_status_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
+        
+        ttk.Label(translation_status_frame, text="Translation:", font=('TkDefaultFont', 8)).grid(row=0, column=0, sticky=tk.W)
+        self.translation_status = ttk.Label(translation_status_frame, text="🇮🇹 IT → 🇺🇸 EN (Riccardo speaks Italian)", font=('TkDefaultFont', 8, 'bold'), foreground='blue')
+        self.translation_status.grid(row=0, column=1, sticky=tk.W, padx=(5, 0))
+        
         # VU (volume) indicator
         self.vu_bar = ttk.Progressbar(status_frame, orient='horizontal', mode='determinate', maximum=100, length=200)
-        self.vu_bar.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(4, 0))
+        self.vu_bar.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(4, 0))
         
         # Configuration section
         config_frame = ttk.LabelFrame(main_frame, text="Configuration", padding="5")
@@ -243,11 +251,13 @@ class ClinicalVoiceInterpreter:
         
         # Input Language selection  
         ttk.Label(config_frame, text="Input Language:").grid(row=1, column=0, sticky=tk.W, padx=(0, 5), pady=(5, 0))
-        self.language_var = tk.StringVar(value=self.config.whisper_language or "auto")
-        language_combo = ttk.Combobox(config_frame, textvariable=self.language_var,
+        self.input_language_var = tk.StringVar(value=self.config.whisper_language or "auto")
+        input_language_combo = ttk.Combobox(config_frame, textvariable=self.input_language_var,
                                     values=["auto", "en", "it", "es", "fr", "de", "zh", "ar", "bn", "sq"],
                                     state="readonly", width=15)
-        language_combo.grid(row=1, column=1, sticky=tk.W, pady=(5, 0))
+        input_language_combo.grid(row=1, column=1, sticky=tk.W, pady=(5, 0))
+        # Auto-select TTS voice when input language changes
+        input_language_combo.bind('<<ComboboxSelected>>', lambda e: self._on_language_change())
         
         # Translation Target Language selection
         ttk.Label(config_frame, text="Translate to:").grid(row=2, column=0, sticky=tk.W, padx=(0, 5), pady=(5, 0))
@@ -256,6 +266,8 @@ class ClinicalVoiceInterpreter:
                                    values=["en", "it", "es", "fr", "de", "zh", "ar", "bn", "sq"],
                                    state="readonly", width=15)
         target_combo.grid(row=2, column=1, sticky=tk.W, pady=(5, 0))
+        # Auto-select TTS voice when target language changes
+        target_combo.bind('<<ComboboxSelected>>', lambda e: self._on_target_language_change())
 
         # Input Device selection
         ttk.Label(config_frame, text="Input Device:").grid(row=3, column=0, sticky=tk.W, padx=(0, 5), pady=(5, 0))
@@ -283,9 +295,6 @@ class ClinicalVoiceInterpreter:
             length=200
         )
         self.input_gain_scale.grid(row=4, column=1, sticky=tk.W, pady=(5, 0))
-        # Numeric label for gain value
-        self.input_gain_value_label = ttk.Label(config_frame, text=f"x{self.input_gain_var.get():.2f}")
-        self.input_gain_value_label.grid(row=4, column=2, sticky=tk.W, padx=(10, 0))
         
         # Text processing options
         processing_frame = ttk.LabelFrame(main_frame, text="Text Processing", padding="5")
@@ -307,42 +316,10 @@ class ClinicalVoiceInterpreter:
         self.tts_var = tk.BooleanVar(value=self.config.enable_tts)
         ttk.Checkbutton(processing_frame, text="Enable Text-to-Speech", 
                        variable=self.tts_var).grid(row=2, column=0, sticky=tk.W)
-
-        # TTS Backend selection
-        ttk.Label(processing_frame, text="TTS Backend:").grid(row=0, column=1, sticky=tk.W, padx=(10, 5))
+        # Internal TTS vars (controls moved to Settings window)
         self.tts_backend_var = tk.StringVar(value=(getattr(self.config, 'tts_backend', None) or 'system'))
-        self.tts_backend_combo = ttk.Combobox(processing_frame, textvariable=self.tts_backend_var,
-                                              values=['system', 'piper'], state='readonly', width=12)
-        self.tts_backend_combo.grid(row=0, column=2, sticky=tk.W)
-        self.tts_backend_combo.bind('<<ComboboxSelected>>', lambda e: self._on_tts_backend_change())
-
-        # TTS Voice selection
-        ttk.Label(processing_frame, text="TTS Voice:").grid(row=2, column=1, sticky=tk.W, padx=(10, 5))
         self.tts_voice_var = tk.StringVar(value=self.config.tts_voice or "")
-        self.tts_voice_combo = ttk.Combobox(processing_frame, textvariable=self.tts_voice_var,
-                                            values=[], state="readonly", width=28)
-        self.tts_voice_combo.grid(row=2, column=2, sticky=tk.W)
-        self.tts_voice_combo.bind('<<ComboboxSelected>>', lambda e: self._on_tts_voice_change())
-
-        # TTS Rate control
-        ttk.Label(processing_frame, text="TTS Rate:").grid(row=3, column=0, sticky=tk.W)
         self.tts_rate_var = tk.IntVar(value=getattr(self.config, 'tts_rate', 200))
-        tts_rate = ttk.Scale(processing_frame, from_=120, to=240, orient='horizontal', length=180,
-                             command=lambda v: self._on_tts_rate_change(v), variable=self.tts_rate_var)
-        tts_rate.grid(row=3, column=1, sticky=tk.W)
-        self.tts_rate_value = ttk.Label(processing_frame, text=f"{self.tts_rate_var.get()} WPM")
-        self.tts_rate_value.grid(row=3, column=2, sticky=tk.W, padx=(10, 0))
-
-        # Piper model selection controls (visible only when backend=piper)
-        self.piper_model_label = ttk.Label(processing_frame, text="Model: (not set)")
-        self.piper_model_label.grid(row=4, column=1, sticky=tk.W, padx=(10, 5))
-        self.piper_model_button = ttk.Button(processing_frame, text="Select Piper Model...",
-                                             command=self._select_piper_model)
-        self.piper_model_button.grid(row=4, column=2, sticky=tk.W)
-        self.piper_models_dir_button = ttk.Button(processing_frame, text="Select Models Folder...",
-                                                  command=self._select_piper_models_folder)
-        self.piper_models_dir_button.grid(row=5, column=2, sticky=tk.W, pady=(2,0))
-        # Internal mapping for piper names -> paths
         self._piper_name_to_path = {}
         
         # Keyboard instructions
@@ -367,6 +344,10 @@ class ClinicalVoiceInterpreter:
         mic_test_button = ttk.Button(instructions_frame, text="🎙️ Test Mic (2s)",
                                    command=lambda: self._test_microphone(2))
         mic_test_button.grid(row=4, column=1, sticky=tk.W, pady=(5, 0))
+
+        # Settings window button
+        settings_button = ttk.Button(instructions_frame, text="⚙️ Settings", command=self._open_settings_window)
+        settings_button.grid(row=4, column=2, sticky=tk.W, pady=(5, 0))
         
         # Control buttons
         button_frame = ttk.Frame(main_frame)
@@ -423,6 +404,12 @@ class ClinicalVoiceInterpreter:
         # Populate TTS voices and backend UI
         self._populate_tts_voices()
         self._update_tts_backend_ui()
+        
+        # Auto-select appropriate TTS voice based on current language settings
+        self._auto_select_tts_voice_for_current_settings()
+        
+        # Initialize status indicators
+        self._update_language_status_indicators()
         
         # Start VU updates
         self._schedule_vu_update()
@@ -485,6 +472,9 @@ class ClinicalVoiceInterpreter:
         self._press_time = now
         self.current_translation_mode = translation_mode
 
+        # Switch Piper voice automatically based on current GUI settings
+        self._auto_select_tts_voice_for_current_settings()
+
         # Cancel any pending stop timer
         if self._stop_timer_id is not None:
             try:
@@ -509,7 +499,12 @@ class ClinicalVoiceInterpreter:
             self.transcriber.update_model(language=forced_lang)
         except Exception:
             pass
-        
+        # Ensure Piper voice is switched for the translation target before starting
+        try:
+            self._switch_piper_voice_for_translation(translation_mode)
+        except Exception:
+            pass
+
         self._on_button_press()
     
     def _on_key_release(self, event, translation_mode):
@@ -592,7 +587,7 @@ class ClinicalVoiceInterpreter:
     def _update_config_from_gui(self):
         """Update configuration from GUI values"""
         self.config.whisper_model = self.model_var.get()
-        self.config.whisper_language = None if self.language_var.get() == "auto" else self.language_var.get()
+        self.config.whisper_language = None if self.input_language_var.get() == "auto" else self.input_language_var.get()
         self.config.enable_llm = self.llm_var.get()
         self.config.enable_deepl = self.deepl_var.get()
         self.config.enable_tts = self.tts_var.get()
@@ -622,7 +617,7 @@ class ClinicalVoiceInterpreter:
         """Save configuration changes immediately"""
         try:
             self.config.whisper_model = self.model_var.get()
-            self.config.whisper_language = None if self.language_var.get() == "auto" else self.language_var.get()
+            self.config.whisper_language = None if self.input_language_var.get() == "auto" else self.input_language_var.get()
             
             # Update config manager and save
             self.config_manager.config = self.config  
@@ -927,7 +922,6 @@ class ClinicalVoiceInterpreter:
         try:
             gain = float(value)
             self.audio_recorder.set_input_gain(gain)
-            self.input_gain_value_label.config(text=f"x{gain:.2f}")
             # Persist to .env so it sticks next run
             self.config_manager.set_env_var('INPUT_GAIN', f"{gain:.2f}")
         except Exception as e:
@@ -1104,6 +1098,188 @@ class ClinicalVoiceInterpreter:
         except Exception as e:
             self.logger.error(f"Failed to reinitialize TTS engine: {e}")
 
+    def _get_piper_voice_for_language(self, language_code: str) -> Optional[str]:
+        """Get the best Piper voice for a given language code"""
+        # Mapping language codes to preferred Piper models
+        language_mapping = {
+            'it': ['it_IT-riccardo-x_low.onnx', 'it_IT-paola-medium.onnx'],
+            'en': ['en_GB-alan-medium.onnx'],
+            'es': ['es_ES-davefx-medium.onnx'],
+            'fr': ['fr_FR-mls-medium.onnx'],
+            'de': ['de_DE-mls-medium.onnx'],
+            'ar': ['ar_JO-kareem-medium.onnx'],
+            'zh': ['zh_CN-huayan-medium.onnx'],
+        }
+        
+        try:
+            models_dir = getattr(self.config, 'piper_models_dir', None)
+            if not models_dir or not os.path.isdir(models_dir):
+                return None
+                
+            # Get preferred models for the language
+            preferred_models = language_mapping.get(language_code.lower(), [])
+            
+            # Check which models are actually available
+            for model_name in preferred_models:
+                model_path = os.path.join(models_dir, model_name)
+                json_path = model_path + ".json"
+                
+                # Check if both .onnx and .json files exist
+                if os.path.exists(model_path) and os.path.exists(json_path):
+                    self.logger.info(f"Selected Piper voice for {language_code}: {model_name}")
+                    return model_path
+                    
+            self.logger.warning(f"No Piper voice found for language: {language_code}")
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error selecting Piper voice for {language_code}: {e}")
+            return None
+
+    def _switch_piper_voice_for_translation(self, translation_mode: str):
+        """Switch Piper voice based on translation direction"""
+        try:
+            self.logger.info(f"🔄 _switch_piper_voice_for_translation called: {translation_mode}")
+            
+            # Check TTS backend
+            current_backend = (self.tts_backend_var.get() or 'system').lower()
+            self.logger.info(f"Current TTS backend: {current_backend}")
+            
+            # Only switch if using Piper backend
+            if current_backend != 'piper':
+                self.logger.info(f"Not switching voice - backend is {current_backend}, not piper")
+                return
+                
+            # Determine target language based on translation mode
+            # TTS should speak the TRANSLATION, not the original
+            if translation_mode == 'it_to_en':
+                # Italian to English - use English voice for the translated English text
+                target_lang = 'en'
+                self.logger.info(f"IT→EN mode: selecting English voice for translation")
+            elif translation_mode == 'en_to_it':
+                # English to Italian - use Italian voice for the translated Italian text
+                target_lang = 'it'
+                self.logger.info(f"EN→IT mode: selecting Italian voice for translation")
+            else:
+                self.logger.warning(f"Unknown translation mode: {translation_mode}")
+                return
+                
+            # Get appropriate Piper voice for target language
+            voice_path = self._get_piper_voice_for_language(target_lang)
+            if not voice_path:
+                return
+                
+            # Switch to the appropriate voice
+            old_model = getattr(self.config, 'piper_model', None)
+            if voice_path != old_model:
+                self.logger.info(f"Switching Piper voice: {translation_mode} -> {os.path.basename(voice_path)}")
+                self.config.piper_model = voice_path
+                self._reinit_tts_engine()
+                # Update UI to reflect the change
+                self._update_tts_backend_ui()
+                
+        except Exception as e:
+            self.logger.error(f"Error switching Piper voice: {e}")
+
+    def _on_language_change(self):
+        """Auto-select TTS voice when input language changes"""
+        try:
+            self.logger.info("🔄 Input language changed, auto-selecting TTS voice")
+            self._auto_select_tts_voice_for_current_settings()
+            self._save_config_changes()
+            self._update_language_status_indicators()
+        except Exception as e:
+            self.logger.error(f"Error handling language change: {e}")
+    
+    def _on_target_language_change(self):
+        """Auto-select TTS voice when target language changes"""
+        try:
+            self.logger.info("🔄 Target language changed, auto-selecting TTS voice")
+            self._auto_select_tts_voice_for_current_settings()
+            self._save_config_changes()
+            self._update_language_status_indicators()
+        except Exception as e:
+            self.logger.error(f"Error handling target language change: {e}")
+    
+    def _auto_select_tts_voice_for_current_settings(self):
+        """Auto-select best TTS voice based on current language settings"""
+        try:
+            # Only auto-select if using Piper backend
+            if (self.tts_backend_var.get() or 'system').lower() != 'piper':
+                return
+            
+            # Get current language settings
+            target_lang = self.target_language_var.get() or 'en'
+            
+            # Logic: TTS should speak the TRANSLATION (target language)
+            # Use target language for voice selection since TTS speaks the translated text
+            preferred_lang = target_lang
+            
+            self.logger.info(f"Auto-selecting voice for target language: {preferred_lang}")
+            
+            # Get appropriate Piper voice
+            voice_path = self._get_piper_voice_for_language(preferred_lang)
+            if not voice_path:
+                self.logger.warning(f"No suitable voice found for language: {preferred_lang}")
+                return
+            
+            # Update configuration and TTS engine
+            old_model = getattr(self.config, 'piper_model', None)
+            if voice_path != old_model:
+                self.logger.info(f"Auto-switching TTS voice: {os.path.basename(voice_path)}")
+                self.config.piper_model = voice_path
+                self.config_manager.set_env_var('PIPER_MODEL', voice_path)
+                self._reinit_tts_engine()
+                self._update_tts_backend_ui()
+                self._populate_tts_voices()
+            
+            # Always update status indicators to ensure they're in sync
+            self._update_language_status_indicators()
+                
+        except Exception as e:
+            self.logger.error(f"Error auto-selecting TTS voice: {e}")
+    
+    def _update_language_status_indicators(self):
+        """Update the translation status indicator"""
+        try:
+            # Language flag mapping
+            lang_flags = {
+                'it': '🇮🇹 IT', 'en': '🇺🇸 EN', 'es': '🇪🇸 ES', 
+                'fr': '🇫🇷 FR', 'de': '🇩🇪 DE', 'zh': '🇨🇳 ZH',
+                'ar': '🇸🇦 AR', 'auto': '🌐 AUTO'
+            }
+            
+            # Voice name mapping
+            voice_names = {
+                'it_IT-riccardo-x_low.onnx': 'Riccardo',
+                'it_IT-paola-medium.onnx': 'Paola',
+                'en_GB-alan-medium.onnx': 'Alan',
+                'es_ES-davefx-medium.onnx': 'Davefx',
+                'fr_FR-mls-medium.onnx': 'MLS',
+                'de_DE-mls-medium.onnx': 'MLS',
+                'ar_JO-kareem-medium.onnx': 'Kareem',
+                'zh_CN-huayan-medium.onnx': 'Huayan'
+            }
+            
+            # Get current settings
+            input_lang = self.input_language_var.get() or 'auto'
+            output_lang = self.target_language_var.get() or 'en'
+            
+            # Get current voice info
+            current_model = getattr(self.config, 'piper_model', '')
+            model_filename = os.path.basename(current_model) if current_model else ''
+            voice_name = voice_names.get(model_filename, 'System')
+            
+            # Create simple status message
+            input_flag = lang_flags.get(input_lang, f'{input_lang.upper()}')
+            output_flag = lang_flags.get(output_lang, f'{output_lang.upper()}')
+            
+            status_text = f"{input_flag} → {output_flag} ({voice_name} speaks {output_flag})"
+            self.translation_status.config(text=status_text)
+            
+        except Exception as e:
+            self.logger.error(f"Error updating language status indicators: {e}")
+
     def _on_tts_rate_change(self, value):
         """Apply TTS rate updates and persist"""
         try:
@@ -1135,6 +1311,13 @@ class ClinicalVoiceInterpreter:
         finally:
             # Schedule next update
             self.root.after(80, self._schedule_vu_update)
+
+    def _open_settings_window(self):
+        try:
+            from settings import SettingsWindow
+            SettingsWindow(self)
+        except Exception as e:
+            self.logger.error(f"Failed to open Settings: {e}")
     
     def _test_hotkeys(self):
         """Test hotkey functionality"""
